@@ -1,4 +1,4 @@
-./project
-./target
-./.metals
-./.bloop
+project/
+target/
+.metals/
+.bloop/

@@ -1,17 +1,17 @@
-import Term._
+import Src.Src
 
-package Gamma {
-    case class Gamma(private val context: List[Pair[String, Term]] = Nil) {
-        def find(name: String): Option[Term] = {
+package object Gamma {
+    case class Gamma[T<:Src](private val context: List[Pair[String, T]] = Nil) {
+        def find(name: String): Option[T] = {
             for (pair <- context; if pair._1 == name) {
                 return Some(pair._2)
             }
             return None
         }
-        def ::(pair: Pair[String, Term]): Gamma = pair::context
+        def ::(pair: Pair[String, T]): Gamma[T] = Gamma(pair::context)
     }
 
     object Gamma {
-        implicit def toGamma(context: List[Pair[String, Term]]): Gamma = Gamma(context)
+        def toGamma[T<:Src](context: List[Pair[String, T]]): Gamma[T] = Gamma(context)
     }
 }

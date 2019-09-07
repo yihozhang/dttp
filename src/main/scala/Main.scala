@@ -1,8 +1,6 @@
-import Term._;
-
 object Main {
     def main(args: Array[String]): Unit = {
-        val a = Var("s");
+        val a = Src.Var("s");
         println("hello world!");
     }
 }

@@ -21,14 +21,19 @@ package object Value {
     }
     sealed abstract class InstantValue extends Value {
         override val forced = this
-        def describes(term: Value): Option[ErrorInfo]
+        def describes(term: Value): Option[ErrorInfo] = {
+            val termo = term.forced
+            if (this.isInstanceOf[TermConstr]) {
+                Some(new ErrorInfo)
+            } else term synth match {
+                case Left(info) => Some(info)
+                case Right(termType) => this unify termType
+            }
+        }
         def synth: Either[ErrorInfo, Value]
         def unify(that: Value, r: Renaming = Renaming.initial): Option[ErrorInfo] = ???
     }
-    trait TermConstr extends InstantValue {
-        override def describes(term: Value): Option[ErrorInfo]
-            = Some(new ErrorInfo)
-    }
+    trait TermConstr extends InstantValue
     trait TypeConstr extends InstantValue
 
     case class Closure(name: String, ty: Value, body: Core, gamma: Gamma) extends InstantValue with TermConstr {
@@ -39,11 +44,6 @@ package object Value {
         } yield result
     }
     case object U extends InstantValue {
-        override def describes(term: Value): Option[ErrorInfo] = term.synth match {
-            case Left(info) => Some(info)
-            case Right(U) => None
-            case Right(_) => Some(new ErrorInfo)
-        }
         override def synth: Either[ErrorInfo,Value] = Left(new ErrorInfo) // Universe has no type
     }
     case object Sole extends InstantValue with TermConstr {
@@ -72,15 +72,15 @@ package object Value {
 
     // Π (x: A) -> B
     case class Π(x: String, fr: Value, to: Core, gamma: Gamma) extends InstantValue with TypeConstr {
-        override def describes(term: Value): Option[ErrorInfo] =
-            term match {
-                case Closure(name, ty, body, gamma1) => {
-                    (fr unify ty) orElse {
-                        to.toValue(Free(x, fr)::gamma) describes (body.toValue(Free(name, ty)::gamma1))
-                    }
-                }   
-                case _ => Some(new ErrorInfo)
-            }
+        // override def describes(term: Value): Option[ErrorInfo] =
+        //     term match {
+        //         case Closure(name, ty, body, gamma1) => {
+        //             (fr unify ty) orElse {
+        //                 to.toValue(Free(x, fr)::gamma) describes (body.toValue(Free(name, ty)::gamma1))
+        //             }
+        //         }   
+        //         case _ => Some(new ErrorInfo)
+        //     }
         override def synth: Either[ErrorInfo,Value] = for {
             frType <- fr.synth
             _ <- (frType unify U) toLeft Right()
@@ -93,44 +93,44 @@ package object Value {
     // Σ (A, D)
     type Pi = Π; val Pi = Π
     case class Σ(name: String, fr: Value, to: Core, gamma: Gamma) extends InstantValue with TypeConstr {
-        override def describes(term: Value): Option[ErrorInfo] =
-            term match {
-                case Cons(a, Closure(name, ty, body, gamma1)) => {
-                    fr.describes(a) orElse {
-                        to.toValue(Free(name, fr)::gamma) describes (body.toValue(Def(name, ty, a)::gamma))
-                    }
-                }
-                case _ => Some(new ErrorInfo)
-            } 
+        // override def describes(term: Value): Option[ErrorInfo] =
+        //     term match {
+        //         case Cons(a, Closure(name, ty, body, gamma1)) => {
+        //             fr.describes(a) orElse {
+        //                 to.toValue(Free(name, fr)::gamma) describes (body.toValue(Def(name, ty, a)::gamma))
+        //             }
+        //         }
+        //         case _ => Some(new ErrorInfo)
+        //     } 
         override def synth: Either[ErrorInfo,Value] = Right(U) // todo, check type
     }
     type Sigma = Σ; val Sigma = Σ 
     case object Trivial extends InstantValue with TypeConstr {
-        override def describes(term: Value): Option[ErrorInfo] =
-            term match {
-                case Sole => None
-                case _ => Some(new ErrorInfo)
-            }
+        // override def describes(term: Value): Option[ErrorInfo] =
+        //     term match {
+        //         case Sole => None
+        //         case _ => Some(new ErrorInfo)
+        //     }
         override def synth: Either[ErrorInfo,Value] = Right(U) // todo, check type
     }
     case object Absurd extends InstantValue with TypeConstr {
-        override def describes(term: Value): Option[ErrorInfo] =
-            Some(new ErrorInfo)
+        // override def describes(term: Value): Option[ErrorInfo] =
+        //     Some(new ErrorInfo)
         override def synth: Either[ErrorInfo,Value] = Right(U) // todo, check type
     }
     case object ℕ extends InstantValue with TypeConstr {
-        override def describes(term: Value): Option[ErrorInfo] = term match {
-            case Zero => None
-            case Add1(inner) => ℕ.describes(inner)
-            case _ => Some(new ErrorInfo)
-        }
+        // override def describes(term: Value): Option[ErrorInfo] = term match {
+        //     case Zero => None
+        //     case Add1(inner) => ℕ.describes(inner)
+        //     case _ => Some(new ErrorInfo)
+        // }
         override def synth: Either[ErrorInfo,Value] = Right(U) // todo, check type}
     }
     val Nat = ℕ;
     case class Neut(neutral: Neut.Neutral) extends InstantValue {
-        override def describes(term: Value): Option[ErrorInfo] = {
-            None // TODO: this
-        }
+        // override def describes(term: Value): Option[ErrorInfo] = {
+        //     None // TODO: this
+        // }
         override def synth: Either[ErrorInfo,Value] = ???
     }
     object Neut {

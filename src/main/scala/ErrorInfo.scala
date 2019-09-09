@@ -1,1 +1,1 @@
-class ErrorInfo
+class ErrorInfo(msg: String = "")

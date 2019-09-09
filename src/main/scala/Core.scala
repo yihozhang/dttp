@@ -3,19 +3,6 @@ import Utils._
 import Value._
 
 package object Core {
-    // type ValueResult = (Value, Gamma)
-    // sealed abstract class Src {
-    //     def toCore(implicit gamma: Gamma): Core
-    // }
-    // case class →(fr: Src, to: Src) extends Src {
-    //     override def toCore(implicit gamma: Gamma): Core =
-    //         Π(Utils.fresh, fr.toCore, to.toCore)
-    // }
-    // type Arrow = →; val Arrow = →
-    // case class Pair(fr: Src, to: Src) extends Src {
-    //     override def toCore(implicit gamma: Gamma): Core = 
-    //         Σ(Utils.fresh, fr.toCore, to.toCore)
-    // }
 
     abstract class Core {
         implicit def toValue(implicit gamma: Gamma): DelayedValue =
@@ -35,7 +22,7 @@ package object Core {
     case class Var(name: String) extends Core {
         override def toValueImpl(implicit gamma: Gamma): InstantValue = 
             (gamma find name) match {
-                case Some((ty, Some(value))) => value.forced
+                case Some((ty, Some(value))) => value
                 case Some((ty, None)) => Neut(Neut.NeutVar(name, ty))
                 case _ => throw new Error("couldn't find variable")
             }
@@ -44,8 +31,8 @@ package object Core {
     case class App(closure: Core, param: Core) extends Core {
         override def toValueImpl(implicit gamma: Gamma): InstantValue = 
             (closure.toValue.forced, param.toValue.forced) match {
-                case (closure @ Closure(name, ty, body, gamma1), Neut(neut)) =>
-                    Neut(Neut.NeutApp(closure, neut))
+                case (Neut(neutral), value) =>
+                    Neut(Neut.NeutApp(neutral, value))
                 case (Closure(name, ty, body, gamma1), value) =>
                     body.toValue(Def(name, ty, value)::gamma1) // TODO: reconsider: actually need to check the type of param and the type of ty
                 case _ => throw new Error("apply parameters to non-functions")
@@ -62,7 +49,7 @@ package object Core {
     case class Car(pair: Core) extends Core {
         override def toValueImpl(implicit gamma: Gamma): InstantValue = 
             pair.toValue.forced match {
-                case Cons(a, b) => a
+                case Cons(a, _) => a
                 case Neut(neut) => Neut(Neut.NeutCar(neut))
                 case _ => throw new Error("apply car to non-pairs")
             }
@@ -74,7 +61,7 @@ package object Core {
     case class Cdr(pair: Core) extends Core {
         override def toValueImpl(implicit gamma: Gamma): InstantValue = 
             pair.toValue.forced match {
-                case Cons(a, b) => b
+                case Cons(a, d @ Closure(name, ty, body, gamma)) => body.toValue(Def(name, ty, a) :: gamma)
                 case Neut(neut) => Neut(Neut.NeutCdr(neut))
                 case _ => throw new Error("apply car to non-pairs")
             }

@@ -10,4 +10,12 @@ package object Utils {
         }
         name
     }
+    class LeftRightTrick(value: Option[ErrorInfo]) {
+        def convert: Either[ErrorInfo, Unit] = value match {
+            case Some(info) => Left(info)
+            case None => Right() 
+        }
+    }
+    implicit def someToLeftNoneToRight(value: Option[ErrorInfo]): LeftRightTrick
+        =  new LeftRightTrick(value)
 }

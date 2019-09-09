@@ -1,5 +1,6 @@
 import Core.Core
 import Gamma.{Gamma, Free, Def, Renaming}
+import Utils.someToLeftNoneToRight
 
 package object Value {
     sealed abstract class Value {
@@ -21,30 +22,67 @@ package object Value {
     }
     sealed abstract class InstantValue extends Value {
         override val forced = this
-        def describes(term: Value): Option[ErrorInfo] = {
-            val termo = term.forced
+        def describes(term: InstantValue): Option[ErrorInfo] = {
             if (this.isInstanceOf[TermConstr]) {
                 Some(new ErrorInfo)
             } else term synth match {
                 case Left(info) => Some(info)
-                case Right(termType) => this unify termType
+                case Right(termType) => (this unify termType)
             }
         }
         def synth: Either[ErrorInfo, Value]
-        def unify(that: Value, r: Renaming = Renaming.initial): Option[ErrorInfo] = ???
+        def unify(that: InstantValue)(implicit r: Renaming = Renaming.initial): Option[ErrorInfo] = (this.forced, that.forced) match {
+            case (a @ Closure(_, _, _, _), b @ Closure(_, _, _, _)) =>
+                (a.ty unify b.ty) orElse (a.selfEval unify b.selfEval)((a.name -> b.name)::r)
+            case (Add1(a), Add1(b)) =>
+                (a unify b)
+            case (a @ Cons(_, _), b @ Cons(_, _)) =>
+                (a.a unify b.a) orElse (a.d unify b.d)
+            case (a @ Π(_, _, _, _), b @ Π(_, _, _, _)) =>
+                (a.ty unify b.ty) orElse (a.selfEval unify b.selfEval)((a.name -> b.name)::r)
+            case (a @ Σ(_, _, _, _), b @ Σ(_, _, _, _)) =>
+                (a.ty unify b.ty) orElse (a.selfEval unify b.selfEval)((a.name -> b.name)::r)
+            case (a @ Neut(_), b @ Neut(_)) =>
+                (a.neutral unify b.neutral)
+            case (ℕ, ℕ) | (U, U) | (Sole, Sole) | (Zero, Zero)
+                | (Trivial, Trivial) | (Absurd, Absurd) => None
+            case _ => Some(new ErrorInfo)
+        }
     }
     trait TermConstr extends InstantValue
     trait TypeConstr extends InstantValue
 
-    case class Closure(name: String, ty: Value, body: Core, gamma: Gamma) extends InstantValue with TermConstr {
+    trait ClosureLike extends InstantValue {
+        val name: String
+        val ty: Value
+        val body: Core
+        val gamma: Gamma
+        var typical: Option[Value] = None
+        def selfEval: Value = typical match {
+            case None => {
+                val actual = body.toValue(Free(name, ty)::gamma)
+                typical = Some(actual)
+                actual
+            }
+            case Some(actual) => actual
+        }
+    }
+    case class Closure(
+        override val name: String,
+        override val ty: Value,
+        override val body: Core,
+        override val gamma: Gamma
+    ) extends InstantValue with TermConstr with ClosureLike {
+        
         override def synth: Either[ErrorInfo,Value] = for {
-            tyty <- ty.synth
-            _ <- (tyty.forced unify U) toLeft Right()
-            result <- body.toValue(Free(name, tyty)::gamma) synth
+            _ <- (U describes ty).convert
+            result <- selfEval synth
         } yield result
     }
     case object U extends InstantValue {
-        override def synth: Either[ErrorInfo,Value] = Left(new ErrorInfo) // Universe has no type
+        override def synth: Either[ErrorInfo,Value] =
+            Left(new ErrorInfo( "Universe has no type"))
+        
     }
     case object Sole extends InstantValue with TermConstr {
         override val synth: Either[ErrorInfo, Value] = Right(Trivial)
@@ -58,86 +96,111 @@ package object Value {
         }
     }
     case class Cons(a: Value, d: Value) extends InstantValue with TermConstr {
+        // first get the type for A and for D, and D should be (name:A) -> T
+        // then, the result type is sigma(name, A, D)
         override def synth: Either[ErrorInfo, Value] = for {
             aType <- a.synth
             dType <- d.synth
             result <- (aType.forced, dType.forced) match {
-                case (tya, Π(name, fr, to, gamma)) => for {
-                    result <- (tya unify fr) toLeft Σ(name, tya, to, gamma)
-                } yield result
-                case _ => Left(new ErrorInfo)
+                case (tya, Π(name, fr, to, gamma)) =>
+                    (tya unify fr) toLeft Σ(name, tya, to, gamma)
+                case _ => Left(new ErrorInfo())
             }
         } yield result
     }
 
     // Π (x: A) -> B
-    case class Π(x: String, fr: Value, to: Core, gamma: Gamma) extends InstantValue with TypeConstr {
-        // override def describes(term: Value): Option[ErrorInfo] =
-        //     term match {
-        //         case Closure(name, ty, body, gamma1) => {
-        //             (fr unify ty) orElse {
-        //                 to.toValue(Free(x, fr)::gamma) describes (body.toValue(Free(name, ty)::gamma1))
-        //             }
-        //         }   
-        //         case _ => Some(new ErrorInfo)
-        //     }
+    case class Π(
+        override val name: String,
+        override val ty: Value,
+        override val body: Core,
+        override val gamma: Gamma
+    ) extends InstantValue with TypeConstr with ClosureLike {
         override def synth: Either[ErrorInfo,Value] = for {
-            frType <- fr.synth
-            _ <- (frType unify U) toLeft Right()
-            to <- Right(to.toValue(Free(x, fr)::gamma).forced)
-            toType <- to.synth
-            _ <- (toType unify U) toLeft Right()
+            _ <- (U describes ty).convert
+            to <- Right(body.toValue(Free(name, ty)::gamma))
+            _ <- (U describes to).convert
         } yield U
     }
 
     // Σ (A, D)
     type Pi = Π; val Pi = Π
-    case class Σ(name: String, fr: Value, to: Core, gamma: Gamma) extends InstantValue with TypeConstr {
-        // override def describes(term: Value): Option[ErrorInfo] =
-        //     term match {
-        //         case Cons(a, Closure(name, ty, body, gamma1)) => {
-        //             fr.describes(a) orElse {
-        //                 to.toValue(Free(name, fr)::gamma) describes (body.toValue(Def(name, ty, a)::gamma))
-        //             }
-        //         }
-        //         case _ => Some(new ErrorInfo)
-        //     } 
-        override def synth: Either[ErrorInfo,Value] = Right(U) // todo, check type
+    case class Σ(
+        override val name: String,
+        override val ty: Value,
+        override val body: Core,
+        override val gamma: Gamma
+    ) extends InstantValue with TypeConstr with ClosureLike {
+        override def synth: Either[ErrorInfo,Value] = for {
+            _ <- (U describes ty).convert
+            to <- Right(body.toValue(Free(name, ty)::gamma)) 
+            _ <- (U describes to).convert
+        } yield U
     }
     type Sigma = Σ; val Sigma = Σ 
     case object Trivial extends InstantValue with TypeConstr {
-        // override def describes(term: Value): Option[ErrorInfo] =
-        //     term match {
-        //         case Sole => None
-        //         case _ => Some(new ErrorInfo)
-        //     }
-        override def synth: Either[ErrorInfo,Value] = Right(U) // todo, check type
+        override def synth: Either[ErrorInfo,Value] = Right(U)
     }
     case object Absurd extends InstantValue with TypeConstr {
-        // override def describes(term: Value): Option[ErrorInfo] =
-        //     Some(new ErrorInfo)
-        override def synth: Either[ErrorInfo,Value] = Right(U) // todo, check type
+        override def synth: Either[ErrorInfo,Value] = Right(U)
     }
     case object ℕ extends InstantValue with TypeConstr {
-        // override def describes(term: Value): Option[ErrorInfo] = term match {
-        //     case Zero => None
-        //     case Add1(inner) => ℕ.describes(inner)
-        //     case _ => Some(new ErrorInfo)
-        // }
-        override def synth: Either[ErrorInfo,Value] = Right(U) // todo, check type}
+        override def synth: Either[ErrorInfo,Value] = Right(U)
     }
     val Nat = ℕ;
     case class Neut(neutral: Neut.Neutral) extends InstantValue {
         // override def describes(term: Value): Option[ErrorInfo] = {
-        //     None // TODO: this
-        // }
-        override def synth: Either[ErrorInfo,Value] = ???
+        override def synth: Either[ErrorInfo,Value] = neutral synth
     }
     object Neut {
-        sealed abstract class Neutral
-        case class NeutVar(name: String, ty: Value) extends Neutral
-        case class NeutApp(closure: Closure, param: Neutral) extends Neutral
-        case class NeutCar(pair: Neutral) extends Neutral
-        case class NeutCdr(pair: Neutral) extends Neutral
+        sealed abstract class Neutral {
+            def synth: Either[ErrorInfo,Value]
+            def unify(that: Neutral)(implicit r: Renaming): Option[ErrorInfo] = (this, that) match {
+                case (a @ NeutVar(_, _), b @ NeutVar(_, _)) if r contains (a.name -> b.name) =>
+                    None
+                case (a @ NeutApp(_, _), b @ NeutApp(_, _)) =>
+                    (a.closure unify b.closure) orElse (a.param unify b.param)
+                case (a @ NeutCar(_), b @ NeutCar(_)) =>
+                    (a.pair unify b.pair)
+                case (a @ NeutCdr(_), b @ NeutCdr(_)) =>
+                    (a.pair unify b.pair)
+                case _ => Some(new ErrorInfo)
+            }
+        }
+        case class NeutVar(name: String, ty: Value) extends Neutral {
+            def synth = Right(ty)
+        }
+        // Since we are doing call-by-need here, what we're eliminating is closure, not param
+        case class NeutApp(closure: Neutral, param: Value) extends Neutral {
+            def synth = for {
+                closureType <- closure.synth
+                result <- closureType match {
+                    case pi @ Π(name, ty, body, gamma) => 
+                        for {
+                            _ <- (ty describes param).convert
+                            result <- pi.selfEval.synth
+                        } yield result
+                    case _ => Left(new ErrorInfo)
+                }
+            } yield result
+        }
+        case class NeutCar(pair: Neutral) extends Neutral {
+            def synth = for {
+                pairType <- pair.synth
+                result <- pairType match {
+                    case sigma @ Σ(name, ty, body, gamma) => Right(ty)
+                    case _ => Left(new ErrorInfo)
+                }
+            } yield result
+        }
+        case class NeutCdr(pair: Neutral) extends Neutral {
+            def synth = for {
+                pairType <- pair.synth
+                result <- pairType match {
+                    case sigma @ Σ(name, ty, body, gamma) => sigma.selfEval.synth
+                    case _ => Left(new ErrorInfo)
+                }
+            } yield result
+        }
     }
 }

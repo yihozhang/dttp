@@ -22,27 +22,32 @@ package object Core {
             DelayedValue(this, gamma)    
         def toValueImpl(implicit gamma: Gamma): InstantValue
     }
-    trait Neutrallable extends Core // actually, Neutrallble is Var + TermElim
+    object Core {
+        implicit def value(core: Core)(implicit gamma: Gamma) = core.toValue
+    }
     // abstraction (function)
     case class λ(name: String, ty: Core, body: Core) extends Core {
         override def toValueImpl(implicit gamma: Gamma): InstantValue =
-            Closure(name, ty.toValue, body, gamma)
+            Closure(name, ty, body, gamma)
     }
     type Abs = λ; val Abs = λ;
     // variable
-    case class Var(name: String) extends Core with Neutrallable {
+    case class Var(name: String) extends Core {
         override def toValueImpl(implicit gamma: Gamma): InstantValue = 
-            (gamma findName name) match {
-                case Some(value) => value
-                case None => Neut(this)
+            (gamma find name) match {
+                case Some((ty, Some(value))) => value.forced
+                case Some((ty, None)) => Neut(Neut.NeutVar(name, ty))
+                case _ => throw new Error("couldn't find variable")
             }
     }
     // applcation
     case class App(closure: Core, param: Core) extends Core {
         override def toValueImpl(implicit gamma: Gamma): InstantValue = 
-            closure.toValue.forced match {
-                case Closure(name, ty, out, gamma1) =>
-                    out.toValue(Def(name, ty, param.toValue(gamma))::gamma1) // TODO: reconsider: actually need to check the type of param and the type of ty
+            (closure.toValue.forced, param.toValue.forced) match {
+                case (closure @ Closure(name, ty, body, gamma1), Neut(neut)) =>
+                    Neut(Neut.NeutApp(closure, neut))
+                case (Closure(name, ty, body, gamma1), value) =>
+                    body.toValue(Def(name, ty, value)::gamma1) // TODO: reconsider: actually need to check the type of param and the type of ty
                 case _ => throw new Error("apply parameters to non-functions")
             }
     }
@@ -54,10 +59,11 @@ package object Core {
     /**
      * Cdr is an eliminator for Cons
      */
-    case class Car(pair: Core) extends Core with Neutrallable {
+    case class Car(pair: Core) extends Core {
         override def toValueImpl(implicit gamma: Gamma): InstantValue = 
             pair.toValue.forced match {
                 case Cons(a, b) => a
+                case Neut(neut) => Neut(Neut.NeutCar(neut))
                 case _ => throw new Error("apply car to non-pairs")
             }
     }
@@ -65,10 +71,11 @@ package object Core {
     /**
      * Cdr is an eliminator for Cons
      */
-    case class Cdr(pair: Core) extends Core with Neutrallable {
+    case class Cdr(pair: Core) extends Core {
         override def toValueImpl(implicit gamma: Gamma): InstantValue = 
             pair.toValue.forced match {
                 case Cons(a, b) => b
+                case Neut(neut) => Neut(Neut.NeutCdr(neut))
                 case _ => throw new Error("apply car to non-pairs")
             }
     }

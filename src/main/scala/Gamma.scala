@@ -13,18 +13,23 @@ package object Gamma {
     case class Def(override val name: String, override val ty: Value, val value: Value) extends Binding(name, ty)
     case class Claim(override val name: String, override val ty: Value) extends Binding(name, ty)
     class  Gamma(private val Γ: List[Binding] = Nil) {
-        private def find[T](name: String, fallback: T, fun: Binding => T): T = {
+        private def findImpl[T](name: String, fallback: T, fun: Binding => T): T = {
             for (pair <- Γ; if pair.name == name) {
                 return fun(pair)
             }
             return fallback
         }
-        def findType(name: String): Option[Value] = find(name, None, pair => Some(pair.ty))
-        def findName(name: String): Option[Value] = find(name, None, _ match {
+        def findType(name: String): Option[Value] = findImpl(name, None, pair => Some(pair.ty))
+        def findName(name: String): Option[Value] = findImpl(name, None, _ match {
                 case Def(name, ty, value) => Some(value)
                 case _ => None
         })
-        def has(name: String): Boolean = find(name, false, _ => true)
+        def find(name: String): Option[(Value, Option[Value])] = findImpl(name, None, _ match {
+            case Free(name, ty) => Some(ty, None)
+            case Def(name, ty, value) => Some(ty, Some(value))
+            case Claim(name, ty) => Some(ty, None)
+        })
+        def has(name: String): Boolean = findImpl(name, false, _ => true)
         override def toString(): String = Γ.toString
         def ::(binding: Binding) = new Gamma(binding::Γ)
     }
@@ -43,5 +48,10 @@ package object Gamma {
         def findName(name: String): Option[Value] = find(name, None, Some(_))
         def ha(name: String): Boolean = find(name, false, _ => true)
         def ::(binding: (String, Value)) = new Env(binding :: ρ)
+    }
+
+    type Renaming = List[(String, String)]
+    object Renaming {
+        val initial: Renaming = Nil
     }
 }

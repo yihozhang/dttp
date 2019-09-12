@@ -1,15 +1,16 @@
 package Data
 
 import Gamma._
-sealed abstract class Src {
-    val loc: Src.Loc
-}
+
 package object Src {
+    sealed abstract class Src {
+        val loc: Src.Loc
+    }
     case class Loc()
     case class λ(override val loc: Loc, name: String, ty: Src, body: Src) extends Src
     type Abs = λ; val Abs = λ;
     case class Var(override val loc: Loc, name: String) extends Src
-    case class App(override val loc: Loc, closure: Src, params: Src*) extends Src
+    case class App(override val loc: Loc, closure: Src, params: Src) extends Src
     case class Car(override val loc: Loc, pair: Src) extends Src
     case class Cdr(override val loc: Loc, pair: Src) extends Src
     case class U(override val loc: Loc) extends Src 

@@ -3,7 +3,7 @@ package Op
 import Data.Value._
 import Data.Gamma.Renaming
 import Data.ErrorInfo
-import Utils.ConversionUtils._
+
 package object Unify {
     def unify(thes: InstantValue, that: InstantValue)(implicit r: Renaming = Renaming.initial): Option[ErrorInfo] =
         (thes.forced, that.forced) match {

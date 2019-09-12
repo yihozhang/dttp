@@ -1,5 +1,5 @@
 package Data
-
+import Value._
 package object Gamma {
     // There are three kinds of binders: a free binder represents a free
     // variable, that was bound in some larger context by λ, Π, or Σ. A

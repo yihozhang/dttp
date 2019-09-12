@@ -2,12 +2,13 @@ package Data
 import Data.Core._
 import Data.Gamma._
 import Data.Src._
-import Utils.ConversionUtils._
 
-sealed abstract class Value {
-    def forced: Value.InstantValue
-}
 package object Value {
+    sealed abstract class Value {
+        def forced: InstantValue
+        def unify(that: Value)(implicit r: Renaming = Renaming.initial) =
+            Op.Unify.unify(this.forced, that.forced)(r)
+    }
     case class DelayedValue(core: Core, gamma: Gamma) extends Value {
         var value: Option[InstantValue] = None
         override def forced: InstantValue = value match {
@@ -22,8 +23,6 @@ package object Value {
 
     sealed abstract class InstantValue extends Value {
         override def forced = this
-        def unify(that: InstantValue)(implicit r: Renaming = Renaming.initial) =
-            Op.Unify.unify(this, that)(r)
     }
     trait TermConstr extends InstantValue
     trait TypeConstr extends InstantValue
@@ -38,9 +37,9 @@ package object Value {
             case None => {
                 val actual = body.toValue(Free(name, ty)::gamma)
                 typical = Some(actual)
-                actual
+                actual.forced
             }
-            case Some(actual) => actual
+            case Some(actual) => actual.forced
         }
     }
     case class Closure(

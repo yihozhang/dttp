@@ -29,6 +29,10 @@ package object Gamma {
             case Def(name, ty, value) => Some(ty, Some(value))
             case Claim(name, ty) => Some(ty, None)
         })
+        def toEnv: Env = new Env(Γ.foldLeft[List[(String, Value)]](Nil)((lst, binding) => binding match {
+            case Def(name, ty, value) => (name -> value)::lst
+            case _ => lst
+        }))
         def has(name: String): Boolean = findImpl(name, false, _ => true)
         override def toString(): String = Γ.toString
         def ::(binding: Binding) = new Gamma(binding::Γ)
@@ -39,14 +43,14 @@ package object Gamma {
     // only runtime, no type information
     
     class Env(private val ρ: List[(String, Value)]) {
-        private def find[T](name: String, fallback: T, fun: Value => T): T = {
+        private def findImpl[T](name: String, fallback: T, fun: Value => T): T = {
             for (pair <- ρ; if pair._1 == name) {
                 return fun(pair._2)
             }
             return fallback
         }
-        def findName(name: String): Option[Value] = find(name, None, Some(_))
-        def ha(name: String): Boolean = find(name, false, _ => true)
+        def find(name: String): Option[Value] = findImpl(name, None, Some(_))
+        def has(name: String): Boolean = findImpl(name, false, _ => true)
         def ::(binding: (String, Value)) = new Env(binding :: ρ)
     }
 

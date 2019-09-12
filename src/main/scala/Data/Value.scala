@@ -2,18 +2,20 @@ package Data
 import Data.Core._
 import Data.Gamma._
 import Data.Src._
+import Data.Result._
 
 package object Value {
     sealed abstract class Value {
         def forced: InstantValue
-        def unify(that: Value)(implicit r: Renaming = Renaming.initial) =
+        def unify(that: Value)(implicit r: Renaming = Renaming.initial): Result[Unit] =
             Op.Unify.unify(this.forced, that.forced)(r)
+        def readback: Core = ???
     }
-    case class DelayedValue(core: Core, gamma: Gamma) extends Value {
+    case class DelayedValue(core: Core, ρ: Env) extends Value {
         var value: Option[InstantValue] = None
         override def forced: InstantValue = value match {
             case None => {
-                val actual: InstantValue = core.toValueImpl(gamma)
+                val actual: InstantValue = core.toValueImpl(ρ)
                 value = Some(actual)
                 actual
             }
@@ -31,11 +33,11 @@ package object Value {
         val name: String
         val ty: Value
         val body: Core
-        val gamma: Gamma
+        val ρ: Env
         var typical: Option[Value] = None
         def selfEval: InstantValue = typical match {
             case None => {
-                val actual = body.toValue(Free(name, ty)::gamma)
+                val actual = body.toValue((name -> ty)::ρ)
                 typical = Some(actual)
                 actual.forced
             }
@@ -44,7 +46,7 @@ package object Value {
     }
     case class Closure(
         override val name: String, override val ty: Value,
-        override val body: Core, override val gamma: Gamma
+        override val body: Core, override val ρ: Env
     ) extends InstantValue with TermConstr with ClosureLike
     case object U extends InstantValue
     case object Sole extends InstantValue with TermConstr
@@ -56,11 +58,11 @@ package object Value {
     // Π (x: A) -> B
     case class Π(
         override val name: String, override val ty: Value,
-        override val body: Core, override val gamma: Gamma
+        override val body: Core, override val ρ: Env
     ) extends InstantValue with TypeConstr with ClosureLike
     case class Σ(
         override val name: String, override val ty: Value,
-        override val body: Core, override val gamma: Gamma
+        override val body: Core, override val ρ: Env
     ) extends InstantValue with TypeConstr with ClosureLike
     case object Trivial extends InstantValue with TypeConstr
     case object Absurd extends InstantValue with TypeConstr
@@ -68,7 +70,7 @@ package object Value {
     case class Neut(neutral: Neutral) extends InstantValue
 
     sealed abstract class Neutral {
-        def unify(that: Neutral)(implicit r: Renaming): Option[ErrorInfo] = Op.Unify.unify(this, that)
+        def unify(that: Neutral)(implicit r: Renaming): Result[Unit] = Op.Unify.unify(this, that)
     }
     case class NeutVar(name: String, ty: Value) extends Neutral
     case class NeutApp(closure: Neutral, param: Value) extends Neutral

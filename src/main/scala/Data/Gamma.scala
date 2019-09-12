@@ -1,4 +1,4 @@
-import Value.Value
+package Data
 
 package object Gamma {
     // There are three kinds of binders: a free binder represents a free

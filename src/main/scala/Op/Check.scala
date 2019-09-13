@@ -47,10 +47,16 @@ object Check {
             } yield Core.Cdr(pair_o)
             case (Src.U(loc), _) => ErrorInfo("U describes a type, but U is not a type")
             case (Src.Trivial(loc), Value.U) => Exact(Core.Trivial)
-            case (Src.→(loc, name, a, b), Value.U) => for {
+            case (Src.→(loc, a, b), Value.U) => for {
                 a_o <- check(a, Value.U)
+                name = fresh
                 b_o <- check(b, Value.U)(Free(name, a_o.toValue)::Γ)
-            } yield Core.Π(fresh, a_o, b_o)
+            } yield Core.Π(name, a_o, b_o)
+            case (Src.Pair(loc, a, b), Value.U) => for {
+                a_o <- check(a, Value.U)
+                name = fresh
+                b_o <- check(b, Value.U)(Free(name, a_o.toValue)::Γ)
+            } yield Core.Σ(name, a_o, b_o)
             case (Src.Π(loc, name, ty, body), Value.U) => for {
                 ty_o <- check(ty, Value.U)
                 body_o <- check(body, Value.U)(Free(name, ty_o.toValue)::Γ)

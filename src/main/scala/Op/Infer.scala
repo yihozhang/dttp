@@ -26,7 +26,8 @@ package object Infer {
                 | Src.Trivial(_)
                 | Src.Σ(_, _, _, _)
                 | Src.ℕ(_)
-                | Src.→(_, _, _, _)
+                | Src.→(_, _, _)
+                | Src.Pair(_, _, _)
             ) => for {
                 src_o <- check(src, Value.U)
             } yield (src_o, Value.U)

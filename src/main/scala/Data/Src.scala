@@ -17,8 +17,9 @@ package object Src {
     case class Zero(override val loc: Loc) extends Src 
     case class Add1(override val loc: Loc, inner: Src) extends Src 
     case class Cons(override val loc: Loc, a: Src, d: Src) extends Src 
-    case class →(override val loc: Loc, name: String, a: Src, b: Src) extends Src
+    case class →(override val loc: Loc, a: Src, b: Src) extends Src
     case class Π(override val loc: Loc, name: String, ty: Src, body: Src) extends Src
+    case class Pair(override val loc: Loc, a: Src, b: Src) extends Src
     case class Σ(override val loc: Loc, name: String, ty: Src, body: Src) extends Src 
     case class Trivial(override val loc: Loc) extends Src 
     case class Absurd(override val loc: Loc) extends Src 

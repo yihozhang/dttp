@@ -37,7 +37,7 @@ package object Value {
         var typical: Option[Value] = None
         def selfEval: InstantValue = typical match {
             case None => {
-                val actual = body.toValue((name -> ty)::ρ)
+                val actual = body.toValue((name -> Neut(NeutVar(name, ty)))::ρ)
                 typical = Some(actual)
                 actual.forced
             }

@@ -9,6 +9,7 @@ import Data.Result._
 import Data.Value
 import Data.Value.Value
 import Op.Check.check
+import _root_.Utils.Conversion._
 package object Infer {
     def infer(src: Src)(implicit Γ: Gamma): Result[(Core, Value)] = {
         implicit val ρ = Γ.toEnv
@@ -61,7 +62,13 @@ package object Infer {
             } yield (Core.App(closure_o, param_o), ty)
             case Src.Zero(loc) => Exact((Core.Zero, Value.ℕ))
             case Src.U(loc) => ErrorInfo("every type is a U, but U has no types")
-            case Src.λ(_, _, _) | Src.Cons(_, _, _) => ErrorInfo("can't infer type for lambda and cons")
+            case Src.λ(loc, name, ty, body) => for {
+                ty_o <- check(ty, Value.U)
+                ty_o_v = ty_o.toValue
+                out <- infer(body)(Free(name, ty_o_v)::Γ)
+                (body_o, body_ty_o) = out
+            } yield (Core.λ(name, ty_o, body_o), Value.Π(name, ty_o_v, body_ty_o.readback, Γ.toEnv))
+            case Src.Cons(_, _, _) => ErrorInfo("can't infer type for lambda and cons")
         }
     }
 }

@@ -2,7 +2,7 @@ package Op
 import Data._
 import Data.Core
 import Data.Value
-import Data.Value.Value
+import Data.Value.InstantValue
 import Data.Src
 import Data.Src.Src
 import Data.Gamma._
@@ -13,16 +13,17 @@ import _root_.Utils.Conversion._
 import _root_.Utils.Fresh._
 object Check {
 
-    def check(src: Src, ty: Value)(implicit Γ: Gamma): Result[Core.Core] = {
+    def check(src: Src, ty: InstantValue)(implicit Γ: Gamma): Result[Core.Core] = {
         implicit val ρ = Γ.toEnv
         (src, ty) match {
             case (Src.Cons(loc, a, d), sigma @ Value.Σ(name, ty, body, gamma)) => for {
                 a_o <- check(a, ty)
                 d_o <- check(d, body.toValue((name -> a_o.toValue)::ρ))
             } yield Core.Cons(a_o, d_o)     
-            case (Src.λ(loc, name, body), pi @ Value.Π(_, _, _, _)) => for {
+            case (Src.λ(loc, name, ty, body), pi @ Value.Π(_, _, _, _)) => for {
+                ty_o <- check(ty, Value.U)
                 body_o <- check(body, pi.selfEval)(Free(name, pi.ty)::Γ)
-            } yield Core.λ(name, pi.ty.readback, body_o)
+            } yield Core.λ(name, ty_o, body_o)
             case (Src.Zero(loc), Value.Nat) => Exact(Core.Zero)
             case (Src.Absurd(loc), Value.U) => Exact(Core.U)
             case (Src.Car(loc, pair), ty) =>

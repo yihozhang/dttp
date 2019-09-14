@@ -14,6 +14,10 @@ package object Result {
             case Exact(value) => Exact(fun(value))
             case thes @ ErrorInfo(msg) => thes
         }
+        def get: T = this match {
+            case ErrorInfo(msg) => throw new Error(msg)
+            case Exact(value) => value
+        }
         // def filter(predicate: T -> Boolean) = this match {
         //     case thes @ ErrorInfo(_) => thes
         //     case Exact(value) => if (predicate(value)) this else ErrorInfo("Assertion")

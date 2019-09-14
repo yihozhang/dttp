@@ -7,7 +7,7 @@ package object Src {
         val loc: Src.Loc
     }
     case class Loc()
-    case class λ(override val loc: Loc, name: String, body: Src) extends Src
+    case class λ(override val loc: Loc, name: String, ty: Src, body: Src) extends Src
     case class Var(override val loc: Loc, name: String) extends Src
     case class App(override val loc: Loc, closure: Src, param: Src) extends Src
     case class Car(override val loc: Loc, pair: Src) extends Src

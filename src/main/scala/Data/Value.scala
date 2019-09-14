@@ -3,13 +3,12 @@ import Data.Core._
 import Data.Gamma._
 import Data.Src._
 import Data.Result._
-
 package object Value {
     sealed abstract class Value {
         def forced: InstantValue
         def unify(that: Value)(implicit r: Renaming = Renaming.initial): Result[Unit] =
             Op.Unify.unify(this.forced, that.forced)(r)
-        def readback: Core = ???
+        def readback: Core = Op.Readback.readback(this)
     }
     case class DelayedValue(core: Core, ρ: Env) extends Value {
         var value: Option[InstantValue] = None
@@ -20,16 +19,14 @@ package object Value {
                 actual
             }
             case Some(value) => value
-        }   
+        }
+        override def readback: Core = this.forced.readback
     }
 
     sealed abstract class InstantValue extends Value {
         override def forced = this
     }
-    trait TermConstr extends InstantValue
-    trait TypeConstr extends InstantValue
-
-    trait ClosureLike extends InstantValue {
+    sealed trait ClosureLike extends InstantValue {
         val name: String
         val ty: Value
         val body: Core
@@ -47,26 +44,26 @@ package object Value {
     case class Closure(
         override val name: String, override val ty: Value,
         override val body: Core, override val ρ: Env
-    ) extends InstantValue with TermConstr with ClosureLike
+    ) extends InstantValue with ClosureLike
     case object U extends InstantValue
-    case object Sole extends InstantValue with TermConstr
-    case object Zero extends InstantValue with TermConstr
-    case class Add1(inner: Value) extends InstantValue with TermConstr
+    case object Sole extends InstantValue
+    case object Zero extends InstantValue
+    case class Add1(inner: Value) extends InstantValue
 
-    case class Cons(a: Value, d: Value) extends InstantValue with TermConstr
+    case class Cons(a: Value, d: Value) extends InstantValue
 
     // Π (x: A) -> B
     case class Π(
         override val name: String, override val ty: Value,
         override val body: Core, override val ρ: Env
-    ) extends InstantValue with TypeConstr with ClosureLike
+    ) extends InstantValue with ClosureLike
     case class Σ(
         override val name: String, override val ty: Value,
         override val body: Core, override val ρ: Env
-    ) extends InstantValue with TypeConstr with ClosureLike
-    case object Trivial extends InstantValue with TypeConstr
-    case object Absurd extends InstantValue with TypeConstr
-    case object ℕ extends InstantValue with TypeConstr
+    ) extends InstantValue with ClosureLike
+    case object Trivial extends InstantValue
+    case object Absurd extends InstantValue
+    case object ℕ extends InstantValue
     case class Neut(neutral: Neutral) extends InstantValue
 
     sealed abstract class Neutral {

@@ -64,7 +64,7 @@ package object Value {
     case object Trivial extends InstantValue
     case object Absurd extends InstantValue
     case object ℕ extends InstantValue
-    case class ≡(ty: Value, value: Value) extends InstantValue
+    case class ≡(ty: Value, fr: Value, to: Value) extends InstantValue
     case class Same(value: Value) extends InstantValue
     case class Neut(neutral: Neutral) extends InstantValue
 

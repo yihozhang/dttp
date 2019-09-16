@@ -31,7 +31,8 @@ package object Gamma {
         })
         def toEnv: Env = new Env(Γ.foldLeft[List[(String, Value)]](Nil)((lst, binding) => binding match {
             case Def(name, ty, value) => (name -> value)::lst
-            case _ => lst
+            case Free(name, ty) => (name -> Neut(NeutVar(name, ty)))::lst
+            case Claim(name, ty) => (name -> Neut(NeutVar(name, ty)))::lst 
         }))
         def has(name: String): Boolean = findImpl(name, false, _ => true)
         override def toString(): String = Γ.toString
@@ -52,6 +53,10 @@ package object Gamma {
         def find(name: String): Option[Value] = findImpl(name, None, Some(_))
         def has(name: String): Boolean = findImpl(name, false, _ => true)
         def ::(binding: (String, Value)) = new Env(binding :: ρ)
+        override def toString(): String = ρ.toString()
+    }
+    object Env {
+        val initial = new Env(Nil)
     }
 
     type Renaming = List[(String, String)]

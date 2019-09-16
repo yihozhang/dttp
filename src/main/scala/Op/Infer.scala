@@ -70,15 +70,22 @@ package object Infer {
                 out <- infer(body)(Free(name, ty_o_v)::Γ)
                 (body_o, body_ty_o) = out
             } yield (Core.λ(name, ty_o, body_o), Value.Π(fresh, ty_o_v, body_ty_o.readback, Γ.toEnv))
-            case Src.Cons(_, _, _) => ErrorInfo("can't infer type for lambda and cons")
-            case Src.≡(loc, ty, value) => for {
+            case Src.Cons(loc, a, d) => for {
+                aout <- infer(a)
+                (a_o, a_ty_o) = aout
+                dout <- infer(d)
+                (d_o, d_ty_o) = dout
+            } yield (Core.Cons(a_o, d_o), Value.Σ(fresh, a_ty_o, d_ty_o.readback, Env.initial)) // here, the case degenerate
+            case Src.≡(loc, ty, fr, to) => for {
                 ty_o <- check(ty, Value.U)
-                value_o <- check(value, ty_o.toValue)
-            } yield (Core.≡(ty_o, value_o), Value.U)
+                fr_o <- check(fr, ty_o.toValue)
+                to_o <- check(to, ty_o.toValue) 
+            } yield (Core.≡(ty_o, fr_o, to_o), Value.U)
             case Src.Same(loc, value) => for {
                 out <- infer(value)
                 (value_o, value_ty_o) = out
-            } yield (Core.Same(value_o), Value.≡(value_ty_o, value_o.toValue))
+                value_ov = value_o.toValue
+            } yield (Core.Same(value_o), Value.≡(value_ty_o, value_ov, value_ov))
         }
     }
 }

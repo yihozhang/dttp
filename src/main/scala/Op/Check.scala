@@ -17,6 +17,7 @@ object Check {
         implicit val Γ = Γr._1;
         implicit val r = Γr._2 
         implicit val ρ = Γ.toEnv
+        println("CHECK: " + src + " " + ty + " " + ρ + " " + Γ)
         (src, ty) match {
             case (Src.Cons(loc, a, d), sigma @ Value.Σ(name, ty, body, gamma)) => for {
                 a_o <- check(a, ty)
@@ -28,8 +29,7 @@ object Check {
             } yield Core.λ(name, ty_o, body_o)
             case (Src.Zero(loc), Value.Nat) => Exact(Core.Zero)
             case (Src.Absurd(loc), Value.U) => Exact(Core.U)
-            case (Src.Car(loc, pair), ty) =>
-            for {
+            case (Src.Car(loc, pair), ty) => for {
                 out <- infer(pair);
                 (pair_o, pair_ty_o) = out
                 _ <- (pair_ty_o match {
@@ -85,13 +85,17 @@ object Check {
                 case Some((var_ty, _)) => (var_ty unify ty) map ( _ => Core.Var(name))
                 case None => ErrorInfo(s"couldn't find variable $name")
             }
-            case (Src.≡(loc, ty, value), Value.U) => for {
+            case (Src.≡(loc, ty, fr, to), Value.U) => for {
                 ty_o <- check(ty, Value.U)
-                value_o <- check(value, ty_o.toValue)
-            } yield Core.≡(ty_o, value_o)
-            case (Src.Same(loc, value), Value.≡(ty, eq_value)) => for {
+                v = ty_o.toValue
+                fr_o <- check(fr, v)
+                to_o <- check(to, v)
+            } yield Core.≡(ty_o, fr_o, to_o)
+            case (Src.Same(loc, value), Value.≡(ty, fr, to)) => for {
                 value_o <- check(value, ty)
-                _ <- value_o.toValue unify eq_value
+                value_ov = value_o.toValue
+                _ <- value_ov unify fr
+                _ <- value_ov unify to
             } yield Core.Same(value_o)
             case _ => new ErrorInfo(s"expected $ty but get $src")
         }

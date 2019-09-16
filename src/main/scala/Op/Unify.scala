@@ -5,7 +5,7 @@ import Data.Gamma.Renaming
 import Data.Result._
 
 package object Unify {
-    def unify(thes: InstantValue, that: InstantValue)(implicit r: Renaming = Renaming.initial): Result[Unit] =
+    def unify(thes: InstantValue, that: InstantValue)(implicit r: Renaming): Result[Unit] =
         (thes.forced, that.forced) match {
             case (a @ Closure(_, _, _, _), b @ Closure(_, _, _, _)) =>
                 (a.ty unify b.ty) orElse {
@@ -26,13 +26,13 @@ package object Unify {
             case (a @ Neut(_), b @ Neut(_)) =>
                 (a.neutral unify b.neutral)
             case (ℕ, ℕ) | (U, U) | (Sole, Sole) | (Zero, Zero)
-                | (Trivial, Trivial) | (Absurd, Absurd) => Exact()
+                | (Trivial, Trivial) | (Absurd, Absurd) => Exact(())
             case _ => ErrorInfo()
         }
 
     def unify(thes: Neutral, that: Neutral)(implicit r: Renaming): Result[Unit] = (thes, that) match {
         case (a @ NeutVar(_, _), b @ NeutVar(_, _)) if r contains (a.name -> b.name) =>
-            Exact()
+            Exact(())
         case (a @ NeutApp(_, _), b @ NeutApp(_, _)) =>
             (a.closure unify b.closure) orElse (a.param unify b.param)
         case (a @ NeutCar(_), b @ NeutCar(_)) =>

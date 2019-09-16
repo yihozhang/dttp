@@ -10,9 +10,11 @@ import Data.Value
 import Data.Value.Value
 import Op.Check.check
 import _root_.Utils.Conversion._
+import _root_.Utils.Fresh._
 package object Infer {
     def infer(src: Src)(implicit Γ: Gamma): Result[(Core, Value)] = {
         implicit val ρ = Γ.toEnv
+        implicit val Γr = (Γ, Renaming.initial)
         src match {
             case Src.Add1(loc, inner) => for {
                 inner_o <- check(inner, Value.Nat)
@@ -55,7 +57,7 @@ package object Infer {
                 out <- closure_ty_o match {
                     case closure_ty_o @ Value.Π(name, ty, body, ρ) => for {
                         param_o <- check(param, ty)
-                    } yield (param_o, closure_ty_o.selfEval)
+                    } yield (param_o, closure_ty_o.selfEval) // TODO: here
                     case _ => ErrorInfo("applying parameters to non-functions")
                 }
                 (param_o, ty) = out
@@ -67,8 +69,16 @@ package object Infer {
                 ty_o_v = ty_o.toValue
                 out <- infer(body)(Free(name, ty_o_v)::Γ)
                 (body_o, body_ty_o) = out
-            } yield (Core.λ(name, ty_o, body_o), Value.Π(name, ty_o_v, body_ty_o.readback, Γ.toEnv))
+            } yield (Core.λ(name, ty_o, body_o), Value.Π(fresh, ty_o_v, body_ty_o.readback, Γ.toEnv))
             case Src.Cons(_, _, _) => ErrorInfo("can't infer type for lambda and cons")
+            case Src.≡(loc, ty, value) => for {
+                ty_o <- check(ty, Value.U)
+                value_o <- check(value, ty_o.toValue)
+            } yield (Core.≡(ty_o, value_o), Value.U)
+            case Src.Same(loc, value) => for {
+                out <- infer(value)
+                (value_o, value_ty_o) = out
+            } yield (Core.Same(value_o), Value.≡(value_ty_o, value_o.toValue))
         }
     }
 }

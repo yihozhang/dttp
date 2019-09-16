@@ -24,6 +24,8 @@ package object Src {
     case class Trivial(override val loc: Loc) extends Src 
     case class Absurd(override val loc: Loc) extends Src 
     case class ℕ(override val loc: Loc) extends Src
+    case class Same(override val loc: Loc, value: Src) extends Src
+    case class ≡(override val loc: Loc, ty: Src, value: Src) extends Src
     type Abs = λ; val Abs = λ
     type Arrow = →; val Arrow = →
     type Pi = Π; val Pi = Π

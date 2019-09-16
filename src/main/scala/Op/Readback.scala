@@ -20,6 +20,8 @@ package object Readback {
         case Value.U => Core.U
         case Value.Σ(name, ty, body, ρ) => Core.Σ(name, readback(ty), readback(body.toValue((name -> Neut(NeutVar(name, ty)))::ρ)))
         case Value.Sole => Core.Sole
+        case Value.Same(value) => Core.Same(value.readback)
+        case Value.≡(ty, value) => Core.≡(ty.readback, value.readback)
     }
 
     def readback(neutral: Value.Neutral): Core = neutral match {

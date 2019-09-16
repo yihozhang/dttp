@@ -112,4 +112,13 @@ package object Core {
             Value.ℕ
     }
     val Nat = ℕ
+
+    case class ≡(ty: Core, value: Core) extends Core {
+        override def toValueImpl(implicit ρ: Data.Gamma.Env): Data.Value.InstantValue =
+            Value.≡(ty.toValue, value.toValue)
+    }
+    case class Same(value: Core) extends Core {
+        override def toValueImpl(implicit ρ: Data.Gamma.Env): Data.Value.InstantValue =
+            Value.Same(value.toValueImpl)
+    }
 }

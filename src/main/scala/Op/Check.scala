@@ -13,7 +13,9 @@ import _root_.Utils.Conversion._
 import _root_.Utils.Fresh._
 object Check {
 
-    def check(src: Src, ty: InstantValue)(implicit Γ: Gamma): Result[Core.Core] = {
+    def check(src: Src, ty: InstantValue)(implicit Γr: (Gamma, Renaming)): Result[Core.Core] = {
+        implicit val Γ = Γr._1;
+        implicit val r = Γr._2 
         implicit val ρ = Γ.toEnv
         (src, ty) match {
             case (Src.Cons(loc, a, d), sigma @ Value.Σ(name, ty, body, gamma)) => for {
@@ -22,7 +24,7 @@ object Check {
             } yield Core.Cons(a_o, d_o)     
             case (Src.λ(loc, name, ty, body), pi @ Value.Π(_, _, _, _)) => for {
                 ty_o <- check(ty, Value.U)
-                body_o <- check(body, pi.selfEval)(Free(name, pi.ty)::Γ)
+                body_o <- check(body, pi.selfEval)(Free(name, pi.ty)::Γ, (name -> pi.name)::r)
             } yield Core.λ(name, ty_o, body_o)
             case (Src.Zero(loc), Value.Nat) => Exact(Core.Zero)
             case (Src.Absurd(loc), Value.U) => Exact(Core.U)
@@ -51,16 +53,16 @@ object Check {
             case (Src.→(loc, a, b), Value.U) => for {
                 a_o <- check(a, Value.U)
                 name = fresh
-                b_o <- check(b, Value.U)(Free(name, a_o.toValue)::Γ)
+                b_o <- check(b, Value.U)(Free(name, a_o.toValue)::Γ, r)
             } yield Core.Π(name, a_o, b_o)
             case (Src.Pair(loc, a, b), Value.U) => for {
                 a_o <- check(a, Value.U)
                 name = fresh
-                b_o <- check(b, Value.U)(Free(name, a_o.toValue)::Γ)
+                b_o <- check(b, Value.U)(Free(name, a_o.toValue)::Γ, r)
             } yield Core.Σ(name, a_o, b_o)
             case (Src.Π(loc, name, ty, body), Value.U) => for {
                 ty_o <- check(ty, Value.U)
-                body_o <- check(body, Value.U)(Free(name, ty_o.toValue)::Γ)
+                body_o <- check(body, Value.U)(Free(name, ty_o.toValue)::Γ, r)
             } yield Core.Π(name, ty_o, body_o)
             case (Src.App(loc, closure, param), ty) => for {
                 out <- infer(closure)
@@ -74,7 +76,7 @@ object Check {
             case (Src.ℕ(loc), Value.U) => Exact(Core.ℕ)
             case (Src.Σ(loc, name, ty, body), Value.U) => for {
                 ty_o <- check(ty, Value.U)
-                body_o <- check(body, Value.U)(Free(name, ty_o.toValue)::Γ)
+                body_o <- check(body, Value.U)(Free(name, ty_o.toValue)::Γ, r)
             } yield Core.Σ(name, ty_o, body_o)
             case (Src.Add1(loc, inner), Value.Nat) => for {
                 inner_o <- check(inner, Value.Nat)
@@ -83,6 +85,14 @@ object Check {
                 case Some((var_ty, _)) => (var_ty unify ty) map ( _ => Core.Var(name))
                 case None => ErrorInfo(s"couldn't find variable $name")
             }
+            case (Src.≡(loc, ty, value), Value.U) => for {
+                ty_o <- check(ty, Value.U)
+                value_o <- check(value, ty_o.toValue)
+            } yield Core.≡(ty_o, value_o)
+            case (Src.Same(loc, value), Value.≡(ty, eq_value)) => for {
+                value_o <- check(value, ty)
+                _ <- value_o.toValue unify eq_value
+            } yield Core.Same(value_o)
             case _ => new ErrorInfo(s"expected $ty but get $src")
         }
     }
